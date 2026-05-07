@@ -32,7 +32,7 @@ class FloatingPetService : Service() {
     // ----- 尺寸 -----
     private var petW = 0
     private var petH = 0
-    private val spriteSize = 180  // dp: 精灵图显示尺寸
+    private val spriteSize = 108  // dp: 精灵图显示尺寸 (180 * 0.6)
 
     // ----- 系统组件 -----
     private lateinit var windowManager: WindowManager
