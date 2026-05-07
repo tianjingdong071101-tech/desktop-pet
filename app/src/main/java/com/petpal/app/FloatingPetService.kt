@@ -295,7 +295,7 @@ class FloatingPetService : Service() {
                 color = Color.BLACK
                 textSize = 28f
                 isAntiAlias = true
-                fakeBold = true
+                isFakeBoldText = true
             }
             val textWidth = textPaint.measureText(text)
             val bubbleW = textWidth + 32f
