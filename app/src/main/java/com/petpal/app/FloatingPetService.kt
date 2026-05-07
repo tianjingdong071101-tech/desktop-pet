@@ -9,6 +9,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.*
+import android.graphics.drawable.BitmapDrawable
 import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
@@ -16,27 +17,32 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
+import androidx.core.content.res.ResourcesCompat
 import com.petpal.app.pet.PetBehavior
 import com.petpal.app.pet.PetState
 import com.petpal.app.pet.PetType
 import com.petpal.app.ui.MainActivity
+import kotlin.math.roundToInt
 
 /**
- * 悬浮窗桌宠服务 —— 紧凑窗口模式
- *
- * 窗口仅包裹宠物本体，不做全屏覆盖。
- * 触摸只对宠物区域响应，其余区域穿透到底层 App。
+ * 悬浮窗桌宠服务 —— 紧凑窗口 + 精灵图渲染
  */
 class FloatingPetService : Service() {
 
-    // ----- 尺寸常量 (dp → px 实际值在运行时转换) -----
-    private var petW = 128
-    private var petH = 160  // 包含气泡空间
+    // ----- 尺寸 -----
+    private var petW = 0
+    private var petH = 0
+    private val spriteSize = 180  // dp: 精灵图显示尺寸
 
     // ----- 系统组件 -----
     private lateinit var windowManager: WindowManager
     private var petView: PetView? = null
     private lateinit var notificationManager: NotificationManager
+
+    // ----- 精灵图 -----
+    private var spriteIdle1: Bitmap? = null
+    private var spriteIdle2: Bitmap? = null
+    private var spriteWalk1: Bitmap? = null
 
     // ----- 宠物引擎 -----
     private lateinit var behavior: PetBehavior
@@ -60,14 +66,30 @@ class FloatingPetService : Service() {
         screenW = metrics.width()
         screenH = metrics.height()
 
-        // dp 转 px
         val density = resources.displayMetrics.density
-        petW = (128 * density).toInt()
-        petH = (160 * density).toInt()
+        petW = (spriteSize * density).roundToInt()
+        petH = (spriteSize * density).roundToInt()
+
+        // 加载精灵图
+        loadSprites()
 
         val prefs = getSharedPreferences("pet_prefs", MODE_PRIVATE)
         petType = PetType.fromName(prefs.getString("pet_type", "CAT") ?: "CAT")
         behavior = PetBehavior(screenW - petW, screenH - petH)
+    }
+
+    private fun loadSprites() {
+        val opts = BitmapFactory.Options().apply { inScaled = false }
+        spriteIdle1 = loadAndScale(R.drawable.sprite_idle_1, opts)
+        spriteIdle2 = loadAndScale(R.drawable.sprite_idle_2, opts)
+        spriteWalk1 = loadAndScale(R.drawable.sprite_walk_1, opts)
+    }
+
+    private fun loadAndScale(resId: Int, opts: BitmapFactory.Options): Bitmap? {
+        val original = BitmapFactory.decodeResource(resources, resId, opts) ?: return null
+        val scaled = Bitmap.createScaledBitmap(original, petW, petH, true)
+        if (scaled != original) original.recycle()
+        return scaled
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -91,6 +113,9 @@ class FloatingPetService : Service() {
         stopAnimationLoop()
         petView?.let { windowManager.removeView(it) }
         petView = null
+        spriteIdle1?.recycle()
+        spriteIdle2?.recycle()
+        spriteWalk1?.recycle()
         super.onDestroy()
     }
 
@@ -178,120 +203,54 @@ class FloatingPetService : Service() {
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
 
-            frameIndex = ((System.currentTimeMillis() / 200) % 4).toInt()
             val now = System.currentTimeMillis()
 
-            // 动画偏移（原地动画，窗口不移动）
+            // 原地动画偏移
             val offsetY = when (behavior.state) {
                 PetState.IDLE -> {
                     val phase = ((now % 2000) / 2000f * Math.PI * 2).toFloat()
-                    kotlin.math.sin(phase) * 6f
+                    kotlin.math.sin(phase) * 4f
                 }
                 PetState.HAPPY -> {
                     val t = ((now % 400) / 400f * Math.PI).toFloat()
-                    kotlin.math.sin(t).toFloat() * 20f
+                    kotlin.math.sin(t).toFloat() * 16f
                 }
                 PetState.EAT -> {
-                    val t = ((now % 300) / 300f * Math.PI).toFloat()
-                    kotlin.math.sin(t).toFloat() * 10f
+                    val t = ((now % 350) / 350f * Math.PI).toFloat()
+                    kotlin.math.sin(t).toFloat() * 8f
                 }
                 PetState.WALK -> {
-                    val t = ((now % 400) / 400f * Math.PI).toFloat()
-                    kotlin.math.sin(t).toFloat() * 3f
+                    val t = ((now % 350) / 350f * Math.PI).toFloat()
+                    kotlin.math.sin(t).toFloat() * 5f
                 }
                 PetState.SLEEP -> 0f
             }
 
-            // 宠物绘制在窗口底部中央
-            val px = (petW / 2 - 64).toFloat()
-            val py = (petH - 128).toFloat() - offsetY
+            // 选帧
+            val sprite = when (behavior.state) {
+                PetState.IDLE -> if ((now / 800) % 2 == 0L) spriteIdle1 else spriteIdle2
+                PetState.WALK -> spriteWalk1
+                PetState.HAPPY -> spriteIdle1
+                PetState.SLEEP -> spriteIdle2
+                PetState.EAT -> spriteIdle1
+            }
 
-            drawPetSprite(canvas, px, py, behavior.facingRight, behavior.state)
+            // 绘制精灵图（填满整个窗口）
+            sprite?.let { bmp ->
+                if (behavior.facingRight) {
+                    canvas.drawBitmap(bmp, 0f, offsetY, null)
+                } else {
+                    canvas.save()
+                    canvas.scale(-1f, 1f, petW / 2f, petH / 2f)
+                    canvas.drawBitmap(bmp, 0f, offsetY, null)
+                    canvas.restore()
+                }
+            }
 
-            // 气泡在宠物上方
+            // 气泡
             if (lastSpeech != null) {
-                drawSpeechBubble(canvas, px, py - 16f)
+                drawSpeechBubble(canvas, 0f, -24f)
             }
-        }
-
-        private fun drawPetSprite(canvas: Canvas, x: Float, y: Float, facingRight: Boolean, state: PetState) {
-            canvas.save()
-            canvas.translate(x, y)
-
-            val bodyColor = when (petType) {
-                PetType.CAT   -> 0xFFFFA726.toInt()
-                PetType.DOG   -> 0xFF8D6E63.toInt()
-                PetType.BUNNY -> 0xFFF8BBD0.toInt()
-            }
-
-            // 身体
-            val bodyPaint = Paint().apply { color = bodyColor; isAntiAlias = true }
-            val bodyRadius = 32f + petType.scale * 12f
-            canvas.drawRoundRect(
-                RectF(8f, 20f, 8f + bodyRadius * 2, 20f + bodyRadius * 1.8f),
-                bodyRadius, bodyRadius, bodyPaint
-            )
-
-            // 耳朵
-            val earPath = Path().apply {
-                moveTo(16f, 24f); lineTo(8f, -8f); lineTo(36f, 16f); close()
-            }
-            canvas.drawPath(earPath, bodyPaint)
-            earPath.reset()
-            earPath.apply {
-                moveTo(88f, 24f); lineTo(120f, -8f); lineTo(96f, 16f); close()
-            }
-            canvas.drawPath(earPath, bodyPaint)
-
-            // 内耳
-            val innerEarPaint = Paint().apply { color = 0xFFFFB8C6.toInt(); isAntiAlias = true }
-            canvas.drawPath(Path().apply {
-                moveTo(19f, 22f); lineTo(13f, 2f); lineTo(30f, 16f); close()
-            }, innerEarPaint)
-            canvas.drawPath(Path().apply {
-                moveTo(91f, 22f); lineTo(115f, 2f); lineTo(98f, 16f); close()
-            }, innerEarPaint)
-
-            // 眼睛
-            val eyePaint = Paint().apply { color = Color.BLACK; isAntiAlias = true }
-            if (state == PetState.SLEEP) {
-                eyePaint.strokeWidth = 2.5f
-                eyePaint.style = Paint.Style.STROKE
-                canvas.drawLine(34f, 44f, 50f, 44f, eyePaint)
-                canvas.drawLine(74f, 44f, 90f, 44f, eyePaint)
-            } else {
-                eyePaint.style = Paint.Style.FILL
-                canvas.drawOval(RectF(34f, 38f, 50f, 52f), eyePaint)
-                canvas.drawOval(RectF(74f, 38f, 90f, 52f), eyePaint)
-            }
-
-            // 高光
-            val shineP = Paint().apply { color = Color.WHITE; isAntiAlias = true }
-            canvas.drawCircle(43f, 43f, 3.5f, shineP)
-            canvas.drawCircle(83f, 43f, 3.5f, shineP)
-
-            // 鼻子
-            val noseP = Paint().apply { color = 0xFFFF8A80.toInt(); isAntiAlias = true }
-            canvas.drawOval(RectF(58f, 50f, 68f, 56f), noseP)
-
-            // 前爪
-            val pawP = Paint().apply { color = 0xFFFFE0B0.toInt(); isAntiAlias = true }
-            canvas.drawOval(RectF(12f, 60f, 28f, 70f), pawP)
-            canvas.drawOval(RectF(96f, 60f, 112f, 70f), pawP)
-
-            // 尾巴
-            val tailP = Paint().apply {
-                color = bodyColor; isAntiAlias = true
-                style = Paint.Style.STROKE; strokeWidth = 4f; strokeCap = Paint.Cap.ROUND
-            }
-            val tailPath = Path().apply {
-                moveTo(104f, 56f)
-                val wag = kotlin.math.sin(System.currentTimeMillis() / 400.0) * 0.5
-                quadTo(132f, 56f - 32f, 104f + 36f, 56f - 20f + (wag * 16).toFloat())
-            }
-            canvas.drawPath(tailPath, tailP)
-
-            canvas.restore()
         }
 
         private fun drawSpeechBubble(canvas: Canvas, px: Float, py: Float) {
@@ -302,8 +261,8 @@ class FloatingPetService : Service() {
             val tw = textPaint.measureText(text)
             val bw = tw + 28f
             val bh = 42f
-            val bx = px + 64f - bw / 2
-            val by = py - bh - 4f
+            val bx = px + petW / 2f - bw / 2
+            val by = py - bh
 
             val bubblePaint = Paint().apply {
                 color = 0xEEFFFFFF.toInt(); isAntiAlias = true
@@ -379,11 +338,10 @@ class FloatingPetService : Service() {
         mainHandler.postDelayed(speechHideRunnable!!, 2000)
     }
 
-    private fun randomPhrase(): String = when (petType) {
-        PetType.CAT   -> listOf("喵~", "=^_^=", "呼噜噜~", "摸头!").random()
-        PetType.DOG   -> listOf("汪!", "摇尾巴!", "好开心~", "摸摸!").random()
-        PetType.BUNNY -> listOf("蹦蹦~", "🐰", "跳跳!", "胡萝卜~").random()
-    }
+    private fun randomPhrase(): String = listOf(
+        "墨君在此", "何事唤我?", "清风拂面~", "竹简里有秘密",
+        "唔...", "好梦正酣", "今日宜静心", "江湖路远且慢行"
+    ).random()
 
     // ==================== 通知 ====================
 
