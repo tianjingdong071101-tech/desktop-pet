@@ -237,7 +237,8 @@ class FloatingPetService : Service() {
                 moveTo(16f, 24f); lineTo(8f, -8f); lineTo(36f, 16f); close()
             }
             canvas.drawPath(earPath, bodyPaint)
-            earPath.reset().apply {
+            earPath.reset()
+            earPath.apply {
                 moveTo(88f, 24f); lineTo(120f, -8f); lineTo(96f, 16f); close()
             }
             canvas.drawPath(earPath, bodyPaint)
