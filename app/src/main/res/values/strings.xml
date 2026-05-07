@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">桌宠</string>
+    <string name="permission_overlay_title">需要悬浮窗权限</string>
+    <string name="permission_overlay_desc">桌面宠物需要在其他应用上方显示，请授予悬浮窗权限。</string>
+    <string name="grant_permission">授予权限</string>
+    <string name="start_pet">启动桌宠</string>
+    <string name="stop_pet">关闭桌宠</string>
+    <string name="pet_settings">宠物设置</string>
+    <string name="choose_pet">选择宠物</string>
+    <string name="cat">猫猫</string>
+    <string name="dog">狗狗</string>
+    <string name="bunny">兔子</string>
+    <string name="speed">移动速度</string>
+    <string name="idle_time">待机时间</string>
+    <string name="auto_start">开机自启</string>
+    <string name="pet_running">桌宠运行中</string>
+    <string name="pet_notification">点击打开设置</string>
+</resources>

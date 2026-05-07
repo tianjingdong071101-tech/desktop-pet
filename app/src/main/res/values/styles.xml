@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.PetPal" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">#FF8C42</item>
+        <item name="colorPrimaryDark">#E67A3A</item>
+        <item name="colorAccent">#FFB74D</item>
+        <item name="android:windowBackground">#FFF8F0</item>
+    </style>
+</resources>
