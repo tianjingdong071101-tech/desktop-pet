@@ -203,9 +203,9 @@ class FloatingPetService : Service() {
             canvas.translate(x, y)
 
             val bodyColor = when (petType) {
-                PetType.CAT   -> 0xFFFFA726
-                PetType.DOG   -> 0xFF8D6E63
-                PetType.BUNNY -> 0xFFF8BBD0
+                PetType.CAT   -> 0xFFFFA726.toInt()
+                PetType.DOG   -> 0xFF8D6E63.toInt()
+                PetType.BUNNY -> 0xFFF8BBD0.toInt()
             }
 
             // === 身体 ===
@@ -295,7 +295,7 @@ class FloatingPetService : Service() {
                 color = Color.BLACK
                 textSize = 28f
                 isAntiAlias = true
-                fakeBoldText = true
+                fakeBold = true
             }
             val textWidth = textPaint.measureText(text)
             val bubbleW = textWidth + 32f

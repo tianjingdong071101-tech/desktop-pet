@@ -108,8 +108,8 @@ class PetBehavior(
 
         if (newState == PetState.WALK) {
             // 随机目标点
-            targetX = Random.nextFloat(0f, (screenWidth - petWidth).toFloat())
-            targetY = Random.nextFloat(0f, (screenHeight - petHeight).toFloat())
+            targetX = Random.nextFloat() * (screenWidth - petWidth)
+            targetY = Random.nextFloat() * (screenHeight - petHeight)
             facingRight = targetX > x
         }
     }
